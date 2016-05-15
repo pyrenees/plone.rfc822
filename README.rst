@@ -1,6 +1,9 @@
 Introduction
 ============
 
+.. image:: https://secure.travis-ci.org/pyrenees/plone.rfc822.png
+  :target: http://travis-ci.org/pyrenees/plone.rfc822
+
 This package provides primitives for turning content objects described by
 ``zope.schema`` fields into RFC (2)822 style messages, as managed by the
 Python standard library's ``email`` module.

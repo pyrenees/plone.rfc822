@@ -36,7 +36,7 @@ import dateutil.parser
 
 from zope.component import queryMultiAdapter
 
-from zope.interface import implements, Interface
+from zope.interface import implementer, Interface
 from zope.component import adapts
 
 from zope.schema.interfaces import IFromUnicode
@@ -46,14 +46,21 @@ from zope.schema.interfaces import ICollection
 
 from plone.rfc822.interfaces import IFieldMarshaler
 
+import sys
+if sys.version_info >= (3,):
+    text_type = str
+else:
+    text_type = unicode
+
 _marker = object()
 
+
+@implementer(IFieldMarshaler)
 class BaseFieldMarshaler(object):
     """Base class for field marshalers
     """
     
-    implements(IFieldMarshaler)
-    
+
     ascii = False
     
     def __init__(self, context, field):
@@ -99,7 +106,7 @@ class BaseFieldMarshaler(object):
     def _set(self, value):
         try:
             self.field.set(self.instance, value)
-        except TypeError, e:
+        except TypeError as e:
             raise ValueError(e)
 
 class UnicodeFieldMarshaler(BaseFieldMarshaler):
@@ -111,13 +118,16 @@ class UnicodeFieldMarshaler(BaseFieldMarshaler):
     def encode(self, value, charset='utf-8', primary=False):
         if value is None:
             return None
-        return unicode(value).encode(charset)
+        return text_type(value).encode(charset)
     
     def decode(self, value, message=None, charset='utf-8', contentType=None, primary=False):
-        unicodeValue = value.decode(charset)
+        if hasattr(value, 'decode'):
+            unicodeValue = value.decode(charset)
+        else:
+            unicodeValue = value
         try:
             return self.field.fromUnicode(unicodeValue)
-        except Exception, e:
+        except Exception as e:
             raise ValueError(e)
     
     def getCharset(self, default='utf-8'):
@@ -129,15 +139,21 @@ class UnicodeValueFieldMarshaler(UnicodeFieldMarshaler):
     """
     
     def encode(self, value, charset='utf-8', primary=False):
-        value = super(UnicodeValueFieldMarshaler, self).encode(
+        encoded = super(UnicodeValueFieldMarshaler, self).encode(
             value, charset, primary)
-        if not value:
+        if not encoded:
             self.ascii = True
-        elif max(map(ord, value)) < 128:
+        elif (not isinstance(value, bytes) and  # python 3
+              isinstance(encoded, bytes) and not isinstance(encoded, str)):
+            if max(encoded) < 128:
+                self.ascii = True
+            else:
+                self.ascii = False
+        elif max(map(ord, encoded)) < 128:
             self.ascii = True
         else:
             self.ascii = False
-        return value
+        return encoded
     
 class ASCIISafeFieldMarshaler(UnicodeFieldMarshaler):
     """Default marshaler for fields that are ASCII safe, but still support
@@ -175,13 +191,16 @@ class DatetimeMarshaler(BaseFieldMarshaler):
     def encode(self, value, charset='utf-8', primary=False):
         if value is None:
             return None
-        return value.isoformat()
+        return value.isoformat().encode(charset)
     
     def decode(self, value, message=None, charset='utf-8', contentType=None, primary=False):
-        unicodeValue = value.decode(charset)
+        if hasattr(value, 'decode'):
+            unicodeValue = value.decode(charset)
+        else:
+            unicodeValue = value
         try:
             return dateutil.parser.parse(unicodeValue)
-        except Exception, e:
+        except Exception as e:
             raise ValueError(e)
 
 class DateMarshaler(BaseFieldMarshaler):
@@ -199,13 +218,16 @@ class DateMarshaler(BaseFieldMarshaler):
     def encode(self, value, charset='utf-8', primary=False):
         if value is None:
             return None
-        return value.isoformat()
+        return value.isoformat().encode(charset)
     
     def decode(self, value, message=None, charset='utf-8', contentType=None, primary=False):
-        unicodeValue = value.decode(charset)
+        if hasattr(value, 'decode'):
+            unicodeValue = value.decode(charset)
+        else:
+            unicodeValue = value
         try:
             return dateutil.parser.parse(unicodeValue).date()
-        except Exception, e:
+        except Exception as e:
             raise ValueError(e)
 
 class TimedeltaMarshaler(BaseFieldMarshaler):
@@ -223,14 +245,17 @@ class TimedeltaMarshaler(BaseFieldMarshaler):
     def encode(self, value, charset='utf-8', primary=False):
         if value is None:
             return None
-        return "%d:%d:%d" % (value.days, value.seconds, value.microseconds)
+        return b"%d:%d:%d" % (value.days, value.seconds, value.microseconds)
     
     def decode(self, value, message=None, charset='utf-8', contentType=None, primary=False):
-        unicodeValue = value.decode(charset)
+        if hasattr(value, 'decode'):
+            unicodeValue = value.decode(charset)
+        else:
+            unicodeValue = value
         try:
-            days, seconds, microseconds = [int(v) for v in value.split(":")]
+            days, seconds, microseconds = [int(v) for v in value.split(b":")]
             return datetime.timedelta(days, seconds, microseconds)
-        except Exception, e:
+        except Exception as e:
             raise ValueError(e)
 
 class CollectionMarshaler(BaseFieldMarshaler):
@@ -267,7 +292,7 @@ class CollectionMarshaler(BaseFieldMarshaler):
         
         self.ascii = ascii
 
-        return '||'.join(value_lines)
+        return b'||'.join(value_lines)
     
     def decode(self, value, message=None, charset='utf-8', contentType=None, primary=False):
         valueTypeMarshaler = queryMultiAdapter((self.context, self.field.value_type,), IFieldMarshaler)
@@ -276,7 +301,7 @@ class CollectionMarshaler(BaseFieldMarshaler):
         
         listValue = []
         
-        for line in value.split('||'):
+        for line in value.split(b'||'):
             listValue.append(valueTypeMarshaler.decode(line, message, charset, contentType, primary))
             
         sequenceType = self.field._type

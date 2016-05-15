@@ -6,12 +6,20 @@ See interfaces.py for details.
 """
 
 import logging
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 # Note: We use capitalised module names to be compatible with Python 2.4
-from email.Message import Message 
-from email.Header import Header, decode_header
-from email.Generator import Generator
+try:
+    from email.Message import Message
+    from email.Header import Header, decode_header
+    from email.Generator import Generator
+except:
+    from email.message import Message
+    from email.header import Header, decode_header
+    from email.generator import Generator
 
 from zope.component import queryMultiAdapter
 from zope.schema import getFieldsInOrder
@@ -49,15 +57,17 @@ def constructMessage(context, fields, charset='utf-8'):
         
         try:
             value = marshaler.marshal(charset, primary=False)
-        except ValueError, e:
+        except ValueError as e:
             LOG.debug("Marshaling of %s for %s failed: %s" % (name, repr(context), str(e)))
             continue
         
         if value is None:
             value = ''
+        elif isinstance(value, bytes) and not isinstance(value, str):  # Python 3
+            value = value.decode(charset)
         elif not isinstance(value, str):
             raise ValueError("Marshaler for field %s did not return a string" % name)
-        
+
         if marshaler.ascii and '\n' not in value:
             msg[name] = value
         else:
@@ -188,13 +198,16 @@ def initializeObject(context, fields, message, defaultCharset='utf-8'):
         headerValue, headerCharset = decode_header(value)[0]
         if headerCharset is None:
             headerCharset = charset
+
+        if not isinstance(headerValue, str) and isinstance(headerValue, bytes):
+            headerValue = headerValue.decode(charset)
         
         # MIME messages always use CRLF. For headers, we're probably safer with \n
         headerValue = headerValue.replace('\r\n', '\n')
         
         try:
             marshaler.demarshal(headerValue, message=message, charset=headerCharset, contentType=contentType, primary=False)
-        except ValueError, e:
+        except ValueError as e:
             # interface allows demarshal() to raise ValueError to indicate marshalling failed
             LOG.debug("Demarshalling of %s for %s failed: %s" % (name, repr(context), str(e)))
             continue
@@ -222,7 +235,7 @@ def initializeObject(context, fields, message, defaultCharset='utf-8'):
                 payloadCharset = message.get_content_charset(charset)
                 try:
                     marshaler.demarshal(payloadValue, message=message, charset=payloadCharset, contentType=contentType, primary=True)
-                except ValueError, e:
+                except ValueError as e:
                     # interface allows demarshal() to raise ValueError to indicate marshalling failed
                     LOG.debug("Demarshalling of %s for %s failed: %s" % (name, repr(context), str(e)))
         
@@ -251,7 +264,7 @@ def initializeObject(context, fields, message, defaultCharset='utf-8'):
                 payloadCharset = msg.get_content_charset(charset)
                 try:
                     marshaler.demarshal(payloadValue, message=msg, charset=payloadCharset, contentType=contentType, primary=True)
-                except ValueError, e:
+                except ValueError as e:
                     # interface allows demarshal() to raise ValueError to indicate marshalling failed
                     LOG.debug("Demarshalling of %s for %s failed: %s" % (name, repr(context), str(e)))
                     continue

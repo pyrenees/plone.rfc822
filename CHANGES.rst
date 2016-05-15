@@ -10,7 +10,8 @@ New:
 
 Fixes:
 
-- *add item here*
+- Fix tests to run on Python 3.5
+  [datakurre]
 
 
 1.1.2 (2016-02-21)

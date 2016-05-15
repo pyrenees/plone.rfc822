@@ -34,7 +34,11 @@ setup(
     zip_safe=False,
     extras_require={
       'supermodel': ['plone.supermodel'],
-      'test': ['plone.testing'],
+      'test': ['plone.testing',
+               'plone.supermodel',
+               'persistent',
+               'zope.annotation',
+               'zope.configuration'],
     },
     install_requires=[
         'setuptools',

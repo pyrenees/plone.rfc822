@@ -8,7 +8,7 @@ based on its headers and body payload.
 Before we begin, let's load the default field marshalers and configure
 annotations, which we will use later in this test.
 
-    >>> configuration = """\
+    >>> configuration = u"""\
     ... <configure
     ...      xmlns="http://namespaces.zope.org/zope"
     ...      i18n_domain="plone.rfc822.tests">
@@ -21,7 +21,7 @@ annotations, which we will use later in this test.
     ... </configure>
     ... """
 
-    >>> from StringIO import StringIO
+    >>> from io import StringIO
     >>> from zope.configuration import xmlconfig
     >>> xmlconfig.xmlconfig(StringIO(configuration))
 
@@ -54,9 +54,9 @@ Constructing a message
 Let's now say we have an instance providing this interface, which we want to
 marshal to a message.
 
-    >>> from zope.interface import implements
-    >>> class TestContent(object):
-    ...     implements(ITestContent)
+    >>> from zope.interface import implementer
+    >>> @implementer(ITestContent)
+    ... class TestContent(object):
     ...     title = u""
     ...     description = u""
     ...     body = u""
@@ -73,12 +73,24 @@ We could create a message form this instance and schema like this:
     >>> from plone.rfc822 import constructMessageFromSchema
     >>> msg = constructMessageFromSchema(content, ITestContent)
 
-The output looks like this:
+The output looks like this with Python 2:
 
     >>> from plone.rfc822 import renderMessage
-    >>> print renderMessage(msg)
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_3
     title: Test title
     description: =?utf-8?q?Test_description=0D=0Awith_a_newline?=
+    emptyfield: 
+    Content-Type: text/plain; charset="utf-8"
+    <BLANKLINE>
+    <p>Test body</p>
+
+And like this with Python 3:
+
+    >>> from plone.rfc822 import renderMessage
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_2
+    title: Test title
+    description: =?utf-8?q?Test_description?=
+     =?utf-8?q?_with_a_newline?=
     emptyfield: 
     Content-Type: text/plain; charset="utf-8"
     <BLANKLINE>
@@ -101,9 +113,19 @@ encoding.
 If we want to use a different content type, we could set it explicitly:
 
     >>> msg.set_type('text/html')
-    >>> print renderMessage(msg)
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_3
     title: Test title
     description: =?utf-8?q?Test_description=0D=0Awith_a_newline?=
+    emptyfield: 
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>Test body</p>
+
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_2
+    title: Test title
+    description: =?utf-8?q?Test_description?=
+     =?utf-8?q?_with_a_newline?=
     emptyfield: 
     MIME-Version: 1.0
     Content-Type: text/html; charset="utf-8"
@@ -153,9 +175,19 @@ above), or have the marshaler check the field name.
 Let's now try again:
 
     >>> msg = constructMessageFromSchema(content, ITestContent)
-    >>> print renderMessage(msg)
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_3
     title: Test title
     description: =?utf-8?q?Test_description=0D=0Awith_a_newline?=
+    emptyfield: 
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>Test body</p>
+
+    >>> print(renderMessage(msg))  # doctest: +SKIP_PYTHON_2
+    title: Test title
+    description: =?utf-8?q?Test_description?=
+     =?utf-8?q?_with_a_newline?=
     emptyfield: 
     MIME-Version: 1.0
     Content-Type: text/html; charset="utf-8"
@@ -192,11 +224,11 @@ message.
     >>> from plone.rfc822 import initializeObjectFromSchema
     >>> initializeObjectFromSchema(newContent, ITestContent, msg)
 
-    >>> newContent.title
+    >>> newContent.title  # doctest: +IGNORE_U
     u'Test title'
-    >>> newContent.description
+    >>> newContent.description  # doctest: +IGNORE_U
     u'Test description\nwith a newline'
-    >>> newContent.body
+    >>> newContent.body  # doctest: +IGNORE_U
     u'<p>Test body</p>'
 
 We can also consume messages with a transfer encoding and a charset:
@@ -219,16 +251,16 @@ We can also consume messages with a transfer encoding and a charset:
     
     >>> initializeObjectFromSchema(newContent, ITestContent, msg)
 
-    >>> newContent.title
+    >>> newContent.title  # doctest: +IGNORE_U
     u'Test title'
-    >>> newContent.description
+    >>> newContent.description  # doctest: +IGNORE_U
     u'Test description\nwith a newline'
-    >>> newContent.body
+    >>> newContent.body  # doctest: +IGNORE_U
     u'<p>Test body</p>'
 
 Note: Empty fields will result in the field's ``missing_value`` being used:
 
-    >>> newContent.emptyfield
+    >>> newContent.emptyfield  # doctest: +IGNORE_U
     u'missing'
 
 Handling multiple primary fields and duplicate field names
@@ -250,8 +282,8 @@ in an annotation adapter:
 The annotation storage would look like this:
 
     >>> from persistent import Persistent
-    >>> class PersonalDetailsAnnotation(Persistent):
-    ...     implements(IPersonalDetails)
+    >>> @implementer(IPersonalDetails)
+    ... class PersonalDetailsAnnotation(Persistent):
     ...     adapts(ITestContent)
     ...     
     ...     def __init__(self):
@@ -298,9 +330,31 @@ primary fields, we will get a multipart message with two attachments.
     >>> from plone.rfc822 import constructMessageFromSchemata
     >>> msg = constructMessageFromSchemata(content, (ITestContent, IPersonalDetails,))
     >>> msgString = renderMessage(msg)
-    >>> print msgString
+    >>> print(msgString)  # doctest: +SKIP_PYTHON_3
     title: Test title
     description: =?utf-8?q?Test_description=0D=0Awith_a_newline?=
+    emptyfield: 
+    description: <p>My description</p>
+    currentAge: 21
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="===============...=="
+    <BLANKLINE>
+    --===============...==
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>Test body</p>
+    --===============...==
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>My profile</p>
+    --===============...==--...
+
+    >>> print(msgString)  # doctest: +SKIP_PYTHON_2
+    title: Test title
+    description: =?utf-8?q?Test_description?=
+     =?utf-8?q?_with_a_newline?=
     emptyfield: 
     description: <p>My description</p>
     currentAge: 21
@@ -338,25 +392,31 @@ attachments to the two primary fields:
     >>> msg = message_from_string(msgString)
     >>> initializeObjectFromSchemata(newContent, [ITestContent, IPersonalDetails], msg)
 
-    >>> newContent.title
+    >>> newContent.title  # doctest: +IGNORE_U
     u'Test title'
     
-    >>> newContent.description
+    >>> newContent.description  # doctest: +SKIP_PYTHON_3
     u'Test description\nwith a newline'
 
-    >>> newContent.body
+    >>> newContent.body  # doctest: +IGNORE_U
     u'<p>Test body</p>'
 
     >>> newPersonalDetails = IPersonalDetails(newContent)
-    >>> newPersonalDetails.description
+    >>> newPersonalDetails.description  # doctest: +IGNORE_U
     u'<p>My description</p>'
 
     >>> newPersonalDetails.currentAge
     21
     
-    >>> newPersonalDetails.personalProfile
+    >>> newPersonalDetails.personalProfile  # doctest: +IGNORE_U
     u'<p>My profile</p>'
     
+It's unfortunate that in Python 3 plone.rfc822 may lose line breaks in
+non-primary fields, because they were no longer encoded into header:
+
+    >>> newContent.description  # doctest: +IGNORE_U +SKIP_PYTHON_2
+    u'Test description with a newline'
+
 Alternative ways to deal with multiple schemata
 -----------------------------------------------
 
@@ -371,19 +431,44 @@ own multipart message. To do that, we would simply use the
     >>> mainMessage = constructMessageFromSchema(content, ITestContent)
     >>> personalDetailsMessage = constructMessageFromSchema(content, IPersonalDetails)
 
-    >>> from email.MIMEMultipart import MIMEMultipart
+    >>> try:
+    ...     from email.MIMEMultipart import MIMEMultipart
+    ... except ImportError:
+    ...     from email.mime.multipart import MIMEMultipart
     >>> envelope = MIMEMultipart()
     >>> envelope.attach(mainMessage)
     >>> envelope.attach(personalDetailsMessage)
 
     >>> envelopeString = renderMessage(envelope)
-    >>> print envelopeString
+    >>> print(envelopeString)  # doctest: +SKIP_PYTHON_3
     Content-Type: multipart/mixed; boundary="===============...=="
     MIME-Version: 1.0
     <BLANKLINE>
     --===============...==
     title: Test title
     description: =?utf-8?q?Test_description=0D=0Awith_a_newline?=
+    emptyfield: 
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>Test body</p>
+    --===============...==
+    description: <p>My description</p>
+    currentAge: 21
+    MIME-Version: 1.0
+    Content-Type: text/html; charset="utf-8"
+    <BLANKLINE>
+    <p>My profile</p>
+    --===============...==--...
+
+    >>> print(envelopeString)  # doctest: +SKIP_PYTHON_2
+    Content-Type: multipart/mixed; boundary="===============...=="
+    MIME-Version: 1.0
+    <BLANKLINE>
+    --===============...==
+    title: Test title
+    description: =?utf-8?q?Test_description?=
+     =?utf-8?q?_with_a_newline?=
     emptyfield: 
     MIME-Version: 1.0
     Content-Type: text/html; charset="utf-8"
@@ -410,7 +495,7 @@ marshaler in ``plone.namedfile``.
 Let's say we have a value type intended to represent a binary file with a
 filename and content type:
 
-    >>> from zope.interface import Interface, implements
+    >>> from zope.interface import Interface, implementer
     >>> from zope import schema
     
     >>> class IFileValue(Interface):
@@ -418,8 +503,8 @@ filename and content type:
     ...     contentType = schema.ASCIILine(title=u"MIME type")
     ...     filename = schema.ASCIILine(title=u"Filename")
 
-    >>> class FileValue(object):
-    ...     implements(IFileValue)
+    >>> @implementer(IFileValue)
+    ... class FileValue(object):
     ...     def __init__(self, data, contentType, filename):
     ...         self.data = data
     ...         self.contentType = contentType
@@ -431,8 +516,8 @@ Suppose we had a custom field type to represent this:
     >>> class IFileField(IObject):
     ...     pass
 
-    >>> class FileField(schema.Object):
-    ...     implements(IFileField)
+    >>> @implementer(IFileField)
+    ... class FileField(schema.Object):
     ...     schema = IFileValue
     ...     def __init__(self, **kw):
     ...         if 'schema' in kw:
@@ -448,7 +533,10 @@ We can register a field marshaler for this field which will do the following:
 * Encode the payload using base64
 
     >>> from plone.rfc822.interfaces import IFieldMarshaler
-    >>> from email.Encoders import encode_base64
+    >>> try:
+    ...     from email.Encoders import encode_base64
+    ... except ImportError:
+    ...     from email.encoders import encode_base64
 
     >>> from zope.component import adapts
     >>> from plone.rfc822.defaultfields import BaseFieldMarshaler
@@ -501,8 +589,8 @@ fields.
     ...     file1 = FileField()
     ...     file2 = FileField()
 
-    >>> class FileContent(object):
-    ...     implements(IFileContent)
+    >>> @implementer(IFileContent)
+    ... class FileContent(object):
     ...     file1 = None
     ...     file2 = None
 
@@ -515,7 +603,7 @@ what happens when we attempt to construct a message from this schema.
 
     >>> from plone.rfc822 import constructMessageFromSchema
     >>> message = constructMessageFromSchema(fileContent, IFileContent)
-    >>> print renderMessage(message)
+    >>> print(renderMessage(message))
     <BLANKLINE>
     <BLANKLINE>
 
@@ -528,13 +616,22 @@ field as primary:
     
     >>> message = constructMessageFromSchema(fileContent, IFileContent)
     >>> messageBody = renderMessage(message)
-    >>> print messageBody
+    >>> print(messageBody)  # doctest: +SKIP_PYTHON_3
     MIME-Version: 1.0
     Content-Type: text/plain
     Content-Disposition: attachment; filename="dummy1.txt"
     Content-Transfer-Encoding: base64
     <BLANKLINE>
     ZHVtbXkgZmlsZQ==
+
+    >>> print(messageBody)  # doctest: +SKIP_PYTHON_2
+    MIME-Version: 1.0
+    Content-Type: text/plain
+    Content-Disposition: attachment; filename="dummy1.txt"
+    Content-Transfer-Encoding: base64
+    <BLANKLINE>
+    ZHVtbXkgZmlsZQ==
+    <BLANKLINE>
 
 Here, we have a base64 encoded payload, a Content-Disposition header, and a
 Content-Type header according to the primary field.
@@ -548,7 +645,7 @@ We can also reconstruct the object from this message.
     >>> newFileContent = FileContent()
     >>> initializeObjectFromSchema(newFileContent, IFileContent, inputMessage)
     
-    >>> newFileContent.file1.data
+    >>> newFileContent.file1.data  # doctest: +IGNORE_B
     'dummy file'
     >>> newFileContent.file1.contentType
     'text/plain'
@@ -564,7 +661,7 @@ In this case, we should get a multipart document with two payloads.
     >>> alsoProvides(IFileContent['file2'], IPrimaryField)
     >>> message = constructMessageFromSchema(fileContent, IFileContent)
     >>> messageBody = renderMessage(message)
-    >>> print messageBody # doctest: +ELLIPSIS
+    >>> print(messageBody) # doctest: +SKIP_PYTHON_3 +ELLIPSIS
     MIME-Version: 1.0
     Content-Type: multipart/mixed; boundary="===============...=="
     <BLANKLINE>
@@ -584,20 +681,43 @@ In this case, we should get a multipart document with two payloads.
     PGh0bWw+PGJvZHk+dGVzdDwvYm9keT48L2h0bWw+
     --===============...==--...
 
+    >>> print(messageBody) # doctest: +SKIP_PYTHON_2 +ELLIPSIS
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="===============...=="
+    <BLANKLINE>
+    --===============...==
+    MIME-Version: 1.0
+    Content-Type: text/plain
+    Content-Disposition: attachment; filename="dummy1.txt"
+    Content-Transfer-Encoding: base64
+    <BLANKLINE>
+    ZHVtbXkgZmlsZQ==
+    <BLANKLINE>
+    --===============...==
+    MIME-Version: 1.0
+    Content-Type: text/html
+    Content-Disposition: attachment; filename="dummy2.html"
+    Content-Transfer-Encoding: base64
+    <BLANKLINE>
+    PGh0bWw+PGJvZHk+dGVzdDwvYm9keT48L2h0bWw+
+    <BLANKLINE>
+    --===============...==--...
+    <BLANKLINE>
+
 And again, we can reconstruct the object, this time with both fields:
 
     >>> inputMessage = message_from_string(messageBody)
     >>> newFileContent = FileContent()
     >>> initializeObjectFromSchema(newFileContent, IFileContent, inputMessage)
     
-    >>> newFileContent.file1.data
+    >>> newFileContent.file1.data  # doctest: +IGNORE_B
     'dummy file'
     >>> newFileContent.file1.contentType
     'text/plain'
     >>> newFileContent.file1.filename
     'dummy1.txt'
 
-    >>> newFileContent.file2.data
+    >>> newFileContent.file2.data  # doctest: +IGNORE_B
     '<html><body>test</body></html>'
     >>> newFileContent.file2.contentType
     'text/html'
